@@ -5,6 +5,7 @@ const readline = require('readline')
 const client = net.createConnection({port : 6379},()=>{
 
     console.log("Client connected");
+    console.log("Available commands are : \n[PING]\n[SET]\n[GET]\n")
 
 
 });
