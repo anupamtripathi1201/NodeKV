@@ -1,7 +1,46 @@
 const net = require('net');
+const fs = require('fs');
 const PORT = 6379;
 
+const AOF_FILE = 'nodekv.aof'
 const store = new Map();
+
+function loadDatabaseFromDisk(){
+    if(fs.existsSync(AOF_FILE)){
+        console.log(`[+] Boot Sequence : AOF file found.Restoring Database...`);
+        const fileData =  fs.readFileSync(AOF_FILE,'utf-8');
+        const lines = fileData.split('\n');
+
+        for(const line of lines){
+            if(!line)continue;
+            const parts = line.split(" ");
+            const command = parts[0].toUpperCase();
+
+            if(command=='SET'){
+                const key = parts[1];
+                const values = parts[2];
+                const expiresAt = null;
+
+                if(parts.length ==5 && parts[3].toUpperCase() =='EX'){
+                    const ttl = parseInt(parts[4],10);
+                    if(!NaN(ttl)){
+                        expiresAt = Date.now + (ttl*1000);
+                    }
+                }
+                else if(parts.length>3){
+                    value = parts.slice(2).join(' ');
+                }
+                store.set(key,{value : values,expiresAt :expiresAt});
+            }
+        }
+        console.log(`SYSTEM RESTORE COMPLETED`);
+    }
+    else{
+        console.log("NO AOF FILE FOUND!");
+    }
+}
+
+loadDatabaseFromDisk();
 
 const server = net.createServer((socket)=>{
     console.log(`Server is connected to ${socket.remoteAddress} : ${socket.remotePort}`);
@@ -37,6 +76,7 @@ const server = net.createServer((socket)=>{
                 value=parts.slice(2).join(' ');
             }
             store.set(key,{value :value,expiresAt :expiresAt});
+            fs.appendFileSync(AOF_FILE,`{input}\n`);
             socket.write("+OK\n");
 
 
