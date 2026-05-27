@@ -18,13 +18,13 @@ function loadDatabaseFromDisk(){
 
             if(command=='SET'){
                 const key = parts[1];
-                const values = parts[2];
-                const expiresAt = null;
+                let values = parts[2];
+                let expiresAt = null;
 
                 if(parts.length ==5 && parts[3].toUpperCase() =='EX'){
                     const ttl = parseInt(parts[4],10);
-                    if(!NaN(ttl)){
-                        expiresAt = Date.now + (ttl*1000);
+                    if(!isNaN(ttl)){
+                        expiresAt = Date.now() + (ttl*1000);
                     }
                 }
                 else if(parts.length>3){
@@ -42,13 +42,31 @@ function loadDatabaseFromDisk(){
 
 loadDatabaseFromDisk();
 
+function parseInput(buffer){
+    const input = buffer.toString();
+
+    if(input[0]==='*'){
+        const lines = input.split('\r\n');
+        const parts =[];
+
+        for(let i =2;i<lines.length;i+=2){
+            if(lines[i]){
+            parts.push(lines[i]);
+        }
+
+    }
+    return parts;
+}
+
+return input.trim().split(' ');
+}
+
 const server = net.createServer((socket)=>{
     console.log(`Server is connected to ${socket.remoteAddress} : ${socket.remotePort}`);
 
     socket.on('data',(buffer)=>{
-        const input = buffer.toString().trim();
-
-        const parts = input.split(' ')
+        const parts = parseInput(buffer);
+        if(parts.length ===0 || !parts[0])return;
         const command = parts[0].toUpperCase();
 
         if(command=='PING'){
@@ -62,7 +80,7 @@ const server = net.createServer((socket)=>{
             }
 
             const key = parts[1];
-            const value = parts[2];
+            let value = parts[2];
             let expiresAt = null;
             if(parts.length===5 && parts[3].toUpperCase()=='EX'){
                 const ttl = parseInt(parts[4],10);
@@ -76,14 +94,15 @@ const server = net.createServer((socket)=>{
                 value=parts.slice(2).join(' ');
             }
             store.set(key,{value :value,expiresAt :expiresAt});
-            fs.appendFileSync(AOF_FILE,`{input}\n`);
-            socket.write("+OK\n");
+            const plainCommand =parts.join(' ');
+            fs.appendFileSync(AOF_FILE,`${plainCommand}\n`);
+            socket.write("+OK\r\n");
 
 
         }
         else if(command=='GET'){
             if(parts.length<2){
-                console.log("More number of arguments are needed\n");
+                socket.write("-ERR More Number of argumengts are needed\r\n")
                 return;
             }
 
@@ -94,7 +113,7 @@ const server = net.createServer((socket)=>{
                     store.delete(key);
                     socket.write('$1\r\n(nil)\n');
                 }else{
-                    socket.write(`$${record.value}\n`);
+                    socket.write(`$${record.value.length}\r\n${record.value}\r\n`);
                 }}
                 else{
                     socket.write(`$!\r\n(nil)\n`);
